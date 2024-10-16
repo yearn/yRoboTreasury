@@ -155,7 +155,7 @@ def _price(token_from: address) -> uint256:
 
     starting_price: uint256 = self.startingPrice * WAD * WAD / (balance * self.auctions[_id].tokenInfo.scaler)
  
-    return starting_price - (starting_price * (block.timestamp - kicked) / length) / PAYMENT_SCALER
+    return (starting_price - (starting_price * (block.timestamp - kicked) / length)) / PAYMENT_SCALER
 
 
 @external
