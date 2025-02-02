@@ -1,4 +1,6 @@
 # pragma version 0.3.10
+# pragma optimize gas
+# pragma evm-version cancun
 
 from vyper.interfaces import ERC20
 
@@ -12,24 +14,29 @@ interface Converter:
     def convert(_from: address, _amount: uint256, _to: address): nonpayable
 
 interface AuctionFactory:
-    def createNewAuction(
-        _to: address, _hook: address, _governance: address, _length: uint256, _cooldown: uint256
-    ) -> Auction: nonpayable
+    def createNewAuction(_want: address, _receiver: address) -> Auction: nonpayable
 
 interface Auction:
-    def getAuctionId(_from: address) -> bytes32: view
-    def auctionInfo(_id: bytes32) -> address: view
-    def kickable(_id: bytes32) -> uint256: view
-    def enable(_from: address, _receiver: address): nonpayable
-    def kick(_id: bytes32) -> uint256: nonpayable
-    def transferGovernance(_new: address): nonpayable
+    def auctions(_from: address) -> (uint64, uint64, uint128): view
+    def enable(_from: address): nonpayable
+    def kickable(_from: address) -> uint256: view
+    def kick(_from: address) -> uint256: nonpayable
 
-vault: public(immutable(address))
+treasury: public(immutable(address))
 robo: public(immutable(Robo))
 auction_factory: public(immutable(AuctionFactory))
 management: public(address)
 pending_management: public(address)
 auctions: public(HashMap[address, Auction])
+
+event Deploy:
+    to: indexed(address)
+    auction: address
+
+event Convert:
+    have: indexed(address)
+    amount: uint256
+    want: indexed(address)
 
 event PendingManagement:
     management: indexed(address)
@@ -37,14 +44,12 @@ event PendingManagement:
 event SetManagement:
     management: indexed(address)
 
-AUCTION_LENGTH: constant(uint256) = 24 * 60 * 60
-
 implements: Factory
 implements: Converter
 
 @external
-def __init__(_vault: address, _robo: address, _auction_factory: address):
-    vault = _vault
+def __init__(_treasury: address, _robo: address, _auction_factory: address):
+    treasury = _treasury
     robo = Robo(_robo)
     auction_factory = AuctionFactory(_auction_factory)
     self.management = msg.sender
@@ -53,10 +58,10 @@ def __init__(_vault: address, _robo: address, _auction_factory: address):
 def deploy(_from: address, _to: address) -> address:
     assert msg.sender == robo.address
 
-    auction: Auction = self.auctions[_to]
-    if auction.address == empty(address):
-        auction = auction_factory.createNewAuction(_to, empty(address), self, AUCTION_LENGTH, 0)
+    if self.auctions[_to].address == empty(address):
+        auction: Auction = auction_factory.createNewAuction(_to, treasury)
         self.auctions[_to] = auction
+        log Deploy(_to, auction.address)
 
     return self
 
@@ -68,16 +73,16 @@ def convert(_from: address, _amount: uint256, _to: address):
     assert auction.address != empty(address)
 
     # enable auction if necessary
-    auction_id: bytes32 = auction.getAuctionId(_from)
-    if auction.auctionInfo(auction_id) != _from:
-        auction.enable(_from, vault)
+    if auction.auctions(_from)[1] == 0:
+        auction.enable(_from)
 
     # transfer tokens to auction contract
     ERC20(_from).transfer(auction.address, _amount)
 
     # kick auction if possible
-    if auction.kickable(auction_id) > 0:
-        auction.kick(auction_id)
+    if auction.kickable(_from) > 0:
+        auction.kick(_from)
+    log Convert(_from, _amount, _to)
 
 @external
 def sweep(_token: address, _amount: uint256 = max_value(uint256)):
@@ -88,9 +93,11 @@ def sweep(_token: address, _amount: uint256 = max_value(uint256)):
     assert ERC20(_token).transfer(self.management, amount, default_return_value=True)
 
 @external
-def transfer_auction_governance(_auction: address):
+def call(_to: address, _data: Bytes[2048]):
     assert msg.sender == self.management
-    Auction(_auction).transferGovernance(msg.sender)
+    auction: Auction = self.auctions[_to]
+    assert auction.address != empty(address)
+    raw_call(auction.address, _data)
 
 @external
 def set_management(_management: address):

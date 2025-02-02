@@ -1,9 +1,15 @@
 # pragma version 0.3.10
+# pragma optimize gas
+# pragma evm-version cancun
 
 from vyper.interfaces import ERC20
 
 management: public(address)
 pending_management: public(address)
+
+event ToManagement:
+    token: indexed(address)
+    amount: uint256
 
 event PendingManagement:
     management: indexed(address)
@@ -23,6 +29,7 @@ def to_management(_token: address, _amount: uint256 = max_value(uint256)):
     if _amount == max_value(uint256):
         amount = ERC20(_token).balanceOf(self)
 
+    log ToManagement(_token, amount)
     assert ERC20(_token).transfer(msg.sender, amount, default_return_value=True)
 
 @external

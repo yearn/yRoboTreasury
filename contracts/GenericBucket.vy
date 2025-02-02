@@ -1,4 +1,6 @@
 # pragma version 0.3.10
+# pragma optimize gas
+# pragma evm-version cancun
 
 from vyper.interfaces import ERC20
 
@@ -16,7 +18,7 @@ interface Bucket:
 interface Provider:
     def rate(_token: address) -> uint256: view
 
-vault: public(immutable(address))
+treasury: public(immutable(address))
 robo: public(immutable(Robo))
 management: public(address)
 pending_management: public(address)
@@ -42,8 +44,8 @@ PRECISION: constant(uint256) = 10**18
 implements: Bucket
 
 @external
-def __init__(_vault: address, _robo: address):
-    vault = _vault
+def __init__(_treasury: address, _robo: address):
+    treasury = _treasury
     robo = Robo(_robo)
     self.management = msg.sender
 
@@ -66,9 +68,9 @@ def convert(_token: address, _amount: uint256):
     self.cached_reserves = 0
     self.cached_want = empty(address)
 
-    # whitelisted tokens are transfered into the vault as is
+    # whitelisted tokens are transfered into the treasury as is
     if self.points[_token] > 0:
-        assert ERC20(_token).transfer(vault, _amount, default_return_value=True)
+        assert ERC20(_token).transfer(treasury, _amount, default_return_value=True)
         return
 
     converter: address = robo.deploy_converter(_token, want)
@@ -88,7 +90,7 @@ def _cache() -> (uint256, address):
     lowest: uint256 = max_value(uint256)
 
     for token in self.tokens:
-        amount: uint256 = ERC20(token).balanceOf(vault) * provider.rate(token) / PRECISION 
+        amount: uint256 = ERC20(token).balanceOf(treasury) * provider.rate(token) / PRECISION 
         reserves += amount
 
         # find most underrepresented token

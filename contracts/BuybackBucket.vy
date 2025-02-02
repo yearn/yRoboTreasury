@@ -1,4 +1,6 @@
 # pragma version 0.3.10
+# pragma optimize gas
+# pragma evm-version cancun
 
 from vyper.interfaces import ERC20
 
@@ -13,7 +15,7 @@ interface Bucket:
     def above_floor() -> bool: nonpayable
     def convert(_token: address, _amount: uint256): nonpayable
 
-vault: public(immutable(address))
+treasury: public(immutable(address))
 robo: public(immutable(Robo))
 buyback_token: public(immutable(address))
 parent: public(address)
@@ -29,8 +31,8 @@ event SetManagement:
 implements: Bucket
 
 @external
-def __init__(_vault: address, _robo: address, _token: address):
-    vault = _vault
+def __init__(_treasury: address, _robo: address, _token: address):
+    treasury = _treasury
     robo = Robo(_robo)
     buyback_token = _token
     self.management = msg.sender
@@ -50,7 +52,7 @@ def convert(_token: address, _amount: uint256):
     assert msg.sender == self.parent
 
     if _token == buyback_token:
-        assert ERC20(_token).transfer(vault, _amount, default_return_value=True)
+        assert ERC20(_token).transfer(treasury, _amount, default_return_value=True)
         return
 
     converter: address = robo.deploy_converter(_token, buyback_token)

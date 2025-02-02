@@ -1,8 +1,10 @@
 # pragma version 0.3.10
+# pragma optimize gas
+# pragma evm-version cancun
 
 from vyper.interfaces import ERC20
 
-interface Treasury:
+interface Ingress:
     def convert(_token: address, _dummy: uint256): nonpayable
 
 interface Bucket:
@@ -25,11 +27,11 @@ interface OneSplit:
         _a: address, _b: address, _c: uint256, _d: uint256, _e: uint256[1], _f: uint256
     ): nonpayable
 
-vault: public(immutable(address))
+treasury: public(immutable(address))
 management: public(address)
 pending_management: public(address)
 operator: public(address)
-treasury: public(Treasury)
+ingress: public(Ingress)
 num_buckets: public(uint256)
 linked_buckets: public(HashMap[address, address])
 packed_factory: public(uint256) # version | factory
@@ -53,11 +55,11 @@ implements: Robo
 implements: OneSplit
 
 @external
-def __init__(_vault: address, _treasury: address):
-    vault = _vault
+def __init__(_treasury: address, _ingress: address):
+    treasury = _treasury
     self.management = msg.sender
     self.operator = msg.sender
-    self.treasury = Treasury(_treasury)
+    self.ingress = Ingress(_ingress)
     self.linked_buckets[SENTINEL] = SENTINEL
     self.packed_factory_versions[0] = 1
 
@@ -117,16 +119,16 @@ def pull(_token: address, _amount: uint256 = max_value(uint256)):
         if Bucket(bucket).above_floor():
             continue
 
-        # obtain an allowance to transfer from the treasury
-        treasury: Treasury = self.treasury
-        treasury.convert(_token, 0)
+        # obtain an allowance to transfer from the ingress
+        ingress: Ingress = self.ingress
+        ingress.convert(_token, 0)
 
         amount: uint256 = _amount
         if _amount == max_value(uint256):
-            amount = ERC20(_token).balanceOf(treasury.address)
+            amount = ERC20(_token).balanceOf(ingress.address)
 
         # handle conversion inside bucket
-        assert ERC20(_token).transferFrom(treasury.address, bucket, amount, default_return_value=True)
+        assert ERC20(_token).transferFrom(ingress.address, bucket, amount, default_return_value=True)
         Bucket(bucket).convert(_token, amount)
 
         return
@@ -150,6 +152,7 @@ def deploy_converter(_from: address, _to: address) -> address:
         assert factory != empty(address)
         assert self._enabled(version)
         converter = Factory(factory).deploy(_from, _to)
+        self.packed_converters[_from][_to] = self._pack(version, converter)
 
     return converter
 
@@ -263,7 +266,7 @@ def accept_management():
     log SetManagement(msg.sender)
 
 
-##### Compatibility with old treasury contract #####
+##### Compatibility with ingress contract #####
 
 @external
 @view
