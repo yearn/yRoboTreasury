@@ -22,6 +22,7 @@ treasury: public(immutable(address))
 robo: public(immutable(Robo))
 management: public(address)
 pending_management: public(address)
+num_tokens: public(uint256)
 tokens: public(DynArray[address, MAX_NUM_TOKENS])
 total_points: public(uint256)
 points: public(HashMap[address, uint256])
@@ -77,15 +78,21 @@ def convert(_token: address, _amount: uint256):
     assert ERC20(_token).transfer(converter, _amount, default_return_value=True)
     Converter(converter).convert(_token, _amount, want)
 
+@external
+@view
+def reserves() -> uint256:
+    return self._reserves()[0]
+
+@external
+@view
+def want() -> address:
+    return self._reserves()[1]
+
 @internal
-def _cache() -> (uint256, address):
-    reserves: uint256 = self.cached_reserves
-    if reserves > 0:
-        return (reserves, self.cached_want)
-
+@view
+def _reserves() -> (uint256, address):
     provider: Provider = self.provider
-    total_points: uint256 = self.total_points
-
+    reserves: uint256 = 0
     want: address = empty(address)
     lowest: uint256 = max_value(uint256)
 
@@ -94,10 +101,21 @@ def _cache() -> (uint256, address):
         reserves += amount
 
         # find most underrepresented token
-        amount = amount * total_points / self.points[token]
+        amount = amount * PRECISION / self.points[token]
         if amount < lowest:
             want = token
             lowest = amount
+    
+    return (reserves, want)
+
+@internal
+def _cache() -> (uint256, address):
+    reserves: uint256 = self.cached_reserves
+    if reserves > 0:
+        return (reserves, self.cached_want)
+
+    want: address = empty(address)
+    reserves, want = self._reserves()
 
     self.cached_reserves = reserves
     self.cached_want = want
@@ -122,6 +140,7 @@ def add_token(_token: address, _points: uint256) -> uint256:
     assert num_tokens < MAX_NUM_TOKENS
     assert self.provider.rate(_token) > 0
 
+    self.num_tokens = num_tokens + 1
     self.tokens.append(_token)
     self.total_points += _points
     self.points[_token] = _points
@@ -136,6 +155,7 @@ def remove_token(_token: address, _index: uint256):
     assert points > 0
 
     last_index: uint256 = len(self.tokens) - 1
+    self.num_tokens = last_index
     if _index < last_index:
         # swap with last entry
         self.tokens[_index] = self.tokens[last_index]
