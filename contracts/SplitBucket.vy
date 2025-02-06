@@ -12,6 +12,7 @@ interface Bucket:
 robo: public(immutable(address))
 management: public(address)
 pending_management: public(address)
+num_buckets: public(uint256)
 buckets: public(DynArray[address, MAX_NUM_BUCKETS])
 total_points: public(uint256)
 points: public(HashMap[address, uint256])
@@ -70,6 +71,7 @@ def add_bucket(_bucket: address, _points: uint256) -> uint256:
     num_buckets: uint256 = len(self.buckets)
     assert num_buckets < MAX_NUM_BUCKETS
 
+    self.num_buckets = num_buckets + 1
     self.buckets.append(_bucket)
     self.total_points += _points
     self.points[_bucket] = _points
@@ -84,6 +86,7 @@ def remove_bucket(_bucket: address, _index: uint256):
     assert points > 0
 
     last_index: uint256 = len(self.buckets) - 1
+    self.num_buckets = last_index
     if _index < last_index:
         # swap with last entry
         self.buckets[_index] = self.buckets[last_index]
