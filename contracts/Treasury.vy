@@ -1,6 +1,13 @@
 # pragma version 0.3.10
 # pragma optimize gas
 # pragma evm-version cancun
+"""
+@title Treasury
+@author Yearn Finance
+@license GNU AGPLv3
+@notice
+    Treasury contract. Intentionally kept as simple as possible to improve auditability
+"""
 
 from vyper.interfaces import ERC20
 
@@ -19,10 +26,19 @@ event SetManagement:
 
 @external
 def __init__():
+    """
+    @notice Constructor
+    """
     self.management = msg.sender
 
 @external
 def to_management(_token: address, _amount: uint256 = max_value(uint256)):
+    """
+    @notice Transfer tokens to management
+    @param _token The token to transfer
+    @param _amount The amount to transfer. Defaults to entire token balance
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
 
     amount: uint256 = _amount

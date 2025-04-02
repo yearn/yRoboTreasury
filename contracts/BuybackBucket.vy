@@ -1,6 +1,14 @@
 # pragma version 0.3.10
 # pragma optimize gas
 # pragma evm-version cancun
+"""
+@title Split bucket
+@author Yearn Finance
+@license GNU AGPLv3
+@notice
+    A type of bucket that contains a single type of asset, most commonly used
+    for buybacks of governance tokens.
+"""
 
 from vyper.interfaces import ERC20
 
@@ -32,6 +40,12 @@ implements: Bucket
 
 @external
 def __init__(_treasury: address, _robo: address, _token: address):
+    """
+    @notice Constructor
+    @param _treasury Treasury contract, ultimate destination of all assets
+    @param _robo Robo contract
+    @param _robo Token being bought back
+    """
     treasury = _treasury
     robo = Robo(_robo)
     buyback_token = _token
@@ -40,15 +54,32 @@ def __init__(_treasury: address, _robo: address, _token: address):
 @external
 @view
 def whitelisted(_token: address) -> bool:
+    """
+    @notice Query whether the address is a whitelisted token
+    @param _token Token address
+    @return True: address is a whitelisted token, False: address is not a whitelisted token
+    """
     return _token == buyback_token
 
 @external
 @view
 def above_floor() -> bool:
+    """
+    @notice Query whether the bucket contents are above its floor value
+    @return True: bucket is at or above its floor, False: bucket is not above its floor
+    """
     return False
 
 @external
 def convert(_token: address, _amount: uint256):
+    """
+    @notice Start conversion of a token to whitelisted token(s)
+    @param _token Token to convert from
+    @param _amount Amount of tokens to convert
+    @dev Can only be called by the parent bucket
+    @dev Expects tokens to be transfered into the contract prior to being called
+    @dev Conversion can be async
+    """
     assert msg.sender == self.parent
 
     if _token == buyback_token:
@@ -61,6 +92,12 @@ def convert(_token: address, _amount: uint256):
 
 @external
 def sweep(_token: address, _amount: uint256 = max_value(uint256)):
+    """
+    @notice Sweep any tokens left over in the contract
+    @param _token The token to sweep
+    @param _amount The amount to sweep. Defaults to contract balance
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     amount: uint256 = _amount
     if _amount == max_value(uint256):
@@ -69,6 +106,11 @@ def sweep(_token: address, _amount: uint256 = max_value(uint256)):
 
 @external
 def set_parent(_parent: address):
+    """
+    @notice Set the parent bucket
+    @param _parent Address of the parent bucket
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     self.parent = _parent
 

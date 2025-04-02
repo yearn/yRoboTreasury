@@ -1,6 +1,23 @@
 # pragma version 0.3.10
 # pragma optimize gas
 # pragma evm-version cancun
+"""
+@title Generic bucket
+@author Yearn Finance
+@license GNU AGPLv3
+@notice
+    A bucket defines a set of whitelisted assets of the same underlying denomination, 
+    e.g. ETH and staked derivatives, or different kinds of (staked) stablecoins.
+    Each asset in the bucket has it's own weight, representing the target allocation
+    of that particular asset inside the bucket. 
+    Buckets are able to receive any kind of asset and convert them to a whitelisted asset,
+    using the converter in the Robo contract. The bucket will prioritize conversion to 
+    the asset that is the most underrepresented relative to its weight.
+
+    Importantly, buckets don't hold assets long-term. Any assets in its contracts are
+    only intended to pass-through, potentially being converted before ultimately ending
+    up in the treasury contract.
+"""
 
 from vyper.interfaces import ERC20
 
@@ -46,6 +63,11 @@ implements: Bucket
 
 @external
 def __init__(_treasury: address, _robo: address):
+    """
+    @notice Constructor
+    @param _treasury Treasury contract, ultimate destination of all assets
+    @param _robo Robo contract
+    """
     treasury = _treasury
     robo = Robo(_robo)
     self.management = msg.sender
@@ -53,14 +75,31 @@ def __init__(_treasury: address, _robo: address):
 @external
 @view
 def whitelisted(_token: address) -> bool:
+    """
+    @notice Query whether the address is a whitelisted token
+    @param _token Token address
+    @return True: address is a whitelisted token, False: address is not a whitelisted token
+    """
     return self.points[_token] > 0
 
 @external
 def above_floor() -> bool:
+    """
+    @notice Query whether the bucket reserves are above its floor value
+    @return True: reserves are at or above the floor, False: reserves are below the floor
+    """
     return self._cache()[0] >= self.reserves_floor
 
 @external
 def convert(_token: address, _amount: uint256):
+    """
+    @notice Start conversion of a token to whitelisted token(s)
+    @param _token Token to convert from
+    @param _amount Amount of tokens to convert
+    @dev Can only be called by the Robo contract or by the split bucket, if any is set
+    @dev Expects tokens to be transfered into the contract prior to being called
+    @dev Conversion can be async
+    """
     assert msg.sender == robo.address or msg.sender == self.split_bucket
     want: address = self._cache()[1]
     assert want != empty(address)
@@ -74,6 +113,7 @@ def convert(_token: address, _amount: uint256):
         assert ERC20(_token).transfer(treasury, _amount, default_return_value=True)
         return
 
+    log Convert(_token, want, _amount)
     converter: address = robo.deploy_converter(_token, want)
     assert ERC20(_token).transfer(converter, _amount, default_return_value=True)
     Converter(converter).convert(_token, _amount, want)
@@ -81,16 +121,29 @@ def convert(_token: address, _amount: uint256):
 @external
 @view
 def reserves() -> uint256:
+    """
+    @notice Query the reserves
+    @return Reserves
+    """
     return self._reserves()[0]
 
 @external
 @view
 def want() -> address:
+    """
+    @notice Query the want token
+    @return Want token
+    """
     return self._reserves()[1]
 
 @internal
 @view
 def _reserves() -> (uint256, address):
+    """
+    @notice
+        Calculate the current reserves and want token, which is based on the most 
+        underrepresented token relative to its points allocation
+    """
     provider: Provider = self.provider
     reserves: uint256 = 0
     want: address = empty(address)
@@ -110,6 +163,12 @@ def _reserves() -> (uint256, address):
 
 @internal
 def _cache() -> (uint256, address):
+    """
+    @notice
+        Query the current reserves and want token. If a previous call in the same
+        transaction cached these values, load from cache. Otherwise, calculate
+        the values and store them in the cache before returning them
+    """
     reserves: uint256 = self.cached_reserves
     if reserves > 0:
         return (reserves, self.cached_want)
@@ -124,6 +183,12 @@ def _cache() -> (uint256, address):
 
 @external
 def sweep(_token: address, _amount: uint256 = max_value(uint256)):
+    """
+    @notice Sweep any tokens left over in the contract
+    @param _token The token to sweep
+    @param _amount The amount to sweep. Defaults to contract balance
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     amount: uint256 = _amount
     if _amount == max_value(uint256):
@@ -132,6 +197,12 @@ def sweep(_token: address, _amount: uint256 = max_value(uint256)):
 
 @external
 def add_token(_token: address, _points: uint256) -> uint256:
+    """
+    @notice Add a token to the bucket
+    @param _token The token to add
+    @param _points The amount of points to allocate
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     assert _token != empty(address)
     assert _points > 0 and _points <= PRECISION
@@ -149,6 +220,12 @@ def add_token(_token: address, _points: uint256) -> uint256:
 
 @external
 def remove_token(_token: address, _index: uint256):
+    """
+    @notice Remove a token from the bucket
+    @param _token The token to remove
+    @param _index The index of the token in the list
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     assert self.tokens[_index] == _token
     points: uint256 = self.points[_token]
@@ -166,6 +243,12 @@ def remove_token(_token: address, _index: uint256):
 
 @external
 def set_points(_token: address, _points: uint256):
+    """
+    @notice Change the points allocation of a token
+    @param _token The token
+    @param _points The amount of points to allocate
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     assert _points > 0 and _points <= PRECISION
     prev_points: uint256 = self.points[_token]
@@ -176,11 +259,21 @@ def set_points(_token: address, _points: uint256):
 
 @external
 def set_split_bucket(_split: address):
+    """
+    @notice Set a split bucket
+    @param _split Address of the bucket. Set to zero for no split bucket
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     self.split_bucket = _split
 
 @external
 def set_provider(_provider: address):
+    """
+    @notice Set the rate provider for this bucket
+    @param _provider The new rate provider
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     assert _provider != empty(address)
 
@@ -192,6 +285,11 @@ def set_provider(_provider: address):
 
 @external
 def set_reserves_floor(_floor: uint256):
+    """
+    @notice Set the new reserves floor
+    @param _floor New floor value
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     self.reserves_floor = _floor
 

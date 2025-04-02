@@ -1,6 +1,14 @@
 # pragma version 0.3.10
 # pragma optimize gas
 # pragma evm-version cancun
+"""
+@title Split bucket
+@author Yearn Finance
+@license GNU AGPLv3
+@notice
+    A type of bucket that splits any incoming assets into a set of child buckets. 
+    Assets are spread out proportional to the weight of each bucket.
+"""
 
 from vyper.interfaces import ERC20
 
@@ -30,21 +38,43 @@ implements: Bucket
 
 @external
 def __init__(_robo: address):
+    """
+    @notice Constructor
+    @param _robo Robo contract
+    """
     robo = _robo
     self.management = msg.sender
 
 @external
 @view
 def whitelisted(_token: address) -> bool:
+    """
+    @notice Query whether the address is a whitelisted token
+    @param _token Token address
+    @return True: address is a whitelisted token, False: address is not a whitelisted token
+    """
     return False
 
 @external
 @view
 def above_floor() -> bool:
+    """
+    @notice Query whether the bucket reserves are above its floor value
+    @return True: reserves are at or above the floor, False: reserves are below the floor
+    """
     return False
 
 @external
 def convert(_token: address, _amount: uint256):
+    """
+    @notice Start conversion of a token to whitelisted token(s)
+    @param _token Token to convert from
+    @param _amount Amount of tokens to convert
+    @dev Can only be called by the Robo contract
+    @dev Converts amounts evenly over the points allocated to each bucket
+    @dev Expects tokens to be transfered into the contract prior to being called
+    @dev Conversion can be async
+    """
     assert msg.sender == robo
     total_points: uint256 = self.total_points
     assert total_points > 0
@@ -56,6 +86,12 @@ def convert(_token: address, _amount: uint256):
 
 @external
 def sweep(_token: address, _amount: uint256 = max_value(uint256)):
+    """
+    @notice Sweep any tokens left over in the contract
+    @param _token The token to sweep
+    @param _amount The amount to sweep. Defaults to contract balance
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     amount: uint256 = _amount
     if _amount == max_value(uint256):
@@ -64,6 +100,12 @@ def sweep(_token: address, _amount: uint256 = max_value(uint256)):
 
 @external
 def add_bucket(_bucket: address, _points: uint256) -> uint256:
+    """
+    @notice Add a bucket to split between
+    @param _bucket The bucket to add
+    @param _points The amount of points to allocate
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     assert _bucket != empty(address)
     assert _points > 0 and _points <= PRECISION
@@ -80,6 +122,12 @@ def add_bucket(_bucket: address, _points: uint256) -> uint256:
 
 @external
 def remove_bucket(_bucket: address, _index: uint256):
+    """
+    @notice Remove a bucket to split between
+    @param _bucket The bucket to remove
+    @param _index The index of the bucket in the list
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     assert self.buckets[_index] == _bucket
     points: uint256 = self.points[_bucket]
@@ -97,6 +145,12 @@ def remove_bucket(_bucket: address, _index: uint256):
 
 @external
 def set_points(_bucket: address, _points: uint256):
+    """
+    @notice Change the points allocation of a bucket
+    @param _bucket The bucket
+    @param _points The amount of points to allocate
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     assert _points > 0 and _points <= PRECISION
     prev_points: uint256 = self.points[_bucket]

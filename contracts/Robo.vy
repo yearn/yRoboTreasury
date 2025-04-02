@@ -1,6 +1,19 @@
 # pragma version 0.3.10
 # pragma optimize gas
 # pragma evm-version cancun
+"""
+@title RoboTreasury
+@author Yearn Finance
+@license GNU AGPLv3
+@notice
+    The main entrypoint for the RoboTreasury system. This contract's responsibility 
+    is to pull funds from the ingress and deposit them into buckets. The buckets are 
+    sorted by priority, and are filled in order until their floor is reached.
+    Since buckets are allowed to convert the incoming assets to their liking,
+    this contract maintains a list of canocnical conversion contracts. These are
+    deployed by a factory but can be overwritten by management to allow for more 
+    efficient implementations for specific pairs.
+"""
 
 from vyper.interfaces import ERC20
 
@@ -56,6 +69,11 @@ implements: OneSplit
 
 @external
 def __init__(_treasury: address, _ingress: address):
+    """
+    @notice Constructor
+    @param _treasury Treasury contract, ultimate destination of all assets
+    @param _ingress Ingress contract, where assets get pulled from
+    """
     treasury = _treasury
     self.management = msg.sender
     self.operator = msg.sender
@@ -66,11 +84,20 @@ def __init__(_treasury: address, _ingress: address):
 @external
 @view
 def is_bucket(_bucket: address) -> bool:
+    """
+    @notice Query whether the address is a valid bucket
+    @param _bucket Bucket address
+    @return True: address is a valid bucket, False: address is not a valid bucket
+    """
     return _bucket != SENTINEL and self.linked_buckets[_bucket] != empty(address)
 
 @external
 @view
 def buckets() -> DynArray[address, MAX_NUM_BUCKETS]:
+    """
+    @notice Query list of configured buckets
+    @return Array of buckets
+    """
     buckets: DynArray[address, MAX_NUM_BUCKETS] = []
     bucket: address = SENTINEL
     for _ in range(MAX_NUM_BUCKETS):
@@ -83,6 +110,12 @@ def buckets() -> DynArray[address, MAX_NUM_BUCKETS]:
 @external
 @view
 def whitelisted(_token: address) -> bool:
+    """
+    @notice Query whether a token is whitelisted in any of the buckets
+    @param _token Token address
+    @return True: token is whitelisted in a bucket, False: token is not whitelisted
+        in a bucket
+    """
     bucket: address = SENTINEL
     for _ in range(MAX_NUM_BUCKETS):
         bucket = self.linked_buckets[bucket]
@@ -95,6 +128,11 @@ def whitelisted(_token: address) -> bool:
 @external
 @view
 def factory() -> (uint256, address, bool):
+    """
+    @notice Query current factory details
+    @return Tuple with factory version, factory address and a flag representing
+        the enable status of this factory version
+    """
     version: uint256 = 0
     factory: address = empty(address)
     (version, factory) = self._unpack(self.packed_factory)
@@ -102,10 +140,22 @@ def factory() -> (uint256, address, bool):
 
 @external
 def factory_version_enabled(_version: uint256) -> bool:
+    """
+    @notice Query whether a specific factory version is enabled
+    @param _version Factory version
+    @return True: factory version enabled, False: factory version disabled
+    """
     return self._enabled(_version)
 
 @external
 def pull(_token: address, _amount: uint256 = max_value(uint256)):
+    """
+    @notice Pull a token from the ingress into a bucket
+    @param _token Token to pull
+    @param _amount Amount of token to pull. Defaults to current ingress balance
+    @return The bucket the funds were sent to
+    @dev Can only be called by the operator
+    """
     assert msg.sender == self.operator
     assert _token != empty(address)
     assert _amount > 0
@@ -138,10 +188,23 @@ def pull(_token: address, _amount: uint256 = max_value(uint256)):
 @external
 @view
 def converter(_from: address, _to: address) -> address:
+    """
+    @notice Query converter contract for a pair, if any is known
+    @param _from The token to convert from
+    @param _to The token to convert to
+    @return The converter contract, if any
+    """
     return self._converter(_from, _to)
 
 @external
 def deploy_converter(_from: address, _to: address) -> address:
+    """
+    @notice Deploy a converter for a pair, if none is known
+    @param _from The token to convert from
+    @param _to The token to convert to
+    @return The converter contract
+    @dev Can only be called by an existing bucket
+    """
     assert self.linked_buckets[msg.sender] != empty(address)
 
     converter: address = self._converter(_from, _to)
@@ -158,6 +221,12 @@ def deploy_converter(_from: address, _to: address) -> address:
 
 @external
 def sweep(_token: address, _amount: uint256 = max_value(uint256)):
+    """
+    @notice Sweep any tokens left over in the contract
+    @param _token The token to sweep
+    @param _amount The amount to sweep. Defaults to contract balance
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     amount: uint256 = _amount
     if _amount == max_value(uint256):
@@ -166,6 +235,12 @@ def sweep(_token: address, _amount: uint256 = max_value(uint256)):
 
 @external
 def add_bucket(_bucket: address, _after: address):
+    """
+    @notice Add a bucket
+    @param _bucket Address of the bucket
+    @param _after Address of the bucket to add it after in the list
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     assert _bucket != empty(address)
     assert self.linked_buckets[_bucket] == empty(address)
@@ -180,6 +255,12 @@ def add_bucket(_bucket: address, _after: address):
 
 @external
 def remove_bucket(_bucket: address, _previous: address):
+    """
+    @notice Remove a bucket
+    @param _bucket Address of the bucket
+    @param _previous Address of the bucket before the target in the list
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     assert _bucket != SENTINEL
     next: address = self.linked_buckets[_bucket]
@@ -192,6 +273,13 @@ def remove_bucket(_bucket: address, _previous: address):
 
 @external
 def replace_bucket(_old: address, _new: address, _previous: address):
+    """
+    @notice Replace a bucket
+    @param _old Address of the old bucket
+    @param _new Address of the new bucket
+    @param _previous Address of the bucket before the target in the list
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     assert _old != SENTINEL
     next: address = self.linked_buckets[_old]
@@ -206,11 +294,24 @@ def replace_bucket(_old: address, _new: address, _previous: address):
 
 @external
 def set_converter(_from: address, _to: address, _converter: address):
+    """
+    @notice Set a converter for a specific pair
+    @param _from The token converted from
+    @param _to The token converted to
+    @param _converter Address of the converter
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     self.packed_converters[_from][_to] = self._pack(0, _converter)
 
 @external
 def set_factory(_factory: address):
+    """
+    @notice Set a new factory for converters
+    @param _factory The factory address, if any
+    @dev Can only be called by management
+    @dev Increments the factory version if a factory is set
+    """
     assert msg.sender == self.management
     version: uint256 = self._unpack(self.packed_factory)[0]
     if _factory != empty(address):
@@ -219,6 +320,12 @@ def set_factory(_factory: address):
 
 @external
 def set_factory_version_enabled(_version: uint256, _enabled: bool):
+    """
+    @notice Toggle all conversion contracts deployed by a specific factory
+    @param _version The version of the factory
+    @param _enabled True: enable all conversions, False: disable all conversions
+    @dev Can only be called by management
+    """
     assert msg.sender == self.management
     latest: uint256 = self._unpack(self.packed_factory)[0]
     assert _version > 0 and _version <= latest
