@@ -51,8 +51,45 @@ packed_factory: public(uint256) # version | factory
 packed_factory_versions: public(HashMap[uint256, uint256])
 packed_converters: public(HashMap[address, HashMap[address, uint256]]) # from => to => (version | converter)
 
+event Pull:
+    _token: indexed(address)
+    _amount: uint256
+
 event SetOperator:
     operator: indexed(address)
+
+event DeployConverter:
+    _from: indexed(address)
+    _to: indexed(address)
+    _converter: address
+
+event Sweep:
+    _token: indexed(address)
+    _amount: uint256
+
+event AddBucket:
+    _bucket: indexed(address)
+    _after: address
+
+event RemoveBucket:
+    _bucket: indexed(address)
+
+event ReplaceBucket:
+    _old: indexed(address)
+    _new: indexed(address)
+
+event SetConverter:
+    _from: indexed(address)
+    _to: indexed(address)
+    _converter: address
+
+event SetFactory:
+    _factory: indexed(address)
+    _version: uint256
+
+event SetFactoryVersionEnabled:
+    _version: indexed(uint256)
+    _enabled: bool
 
 event PendingManagement:
     management: indexed(address)
@@ -180,6 +217,7 @@ def pull(_token: address, _amount: uint256 = max_value(uint256)):
         # handle conversion inside bucket
         assert ERC20(_token).transferFrom(ingress.address, bucket, amount, default_return_value=True)
         Bucket(bucket).convert(_token, amount)
+        log Pull(_token, amount)
 
         return
 
@@ -216,6 +254,7 @@ def deploy_converter(_from: address, _to: address) -> address:
         assert self._enabled(version)
         converter = Factory(factory).deploy(_from, _to)
         self.packed_converters[_from][_to] = self._pack(version, converter)
+        log DeployConverter(_from, _to, converter)
 
     return converter
 
@@ -232,6 +271,7 @@ def sweep(_token: address, _amount: uint256 = max_value(uint256)):
     if _amount == max_value(uint256):
         amount = ERC20(_token).balanceOf(self)
     assert ERC20(_token).transfer(self.management, amount, default_return_value=True)
+    log Sweep(_token, amount)
 
 @external
 def add_bucket(_bucket: address, _after: address):
@@ -252,6 +292,7 @@ def add_bucket(_bucket: address, _after: address):
     self.num_buckets = num_buckets + 1
     self.linked_buckets[_after] = _bucket
     self.linked_buckets[_bucket] = next
+    log AddBucket(_bucket, _after)
 
 @external
 def remove_bucket(_bucket: address, _previous: address):
@@ -270,6 +311,7 @@ def remove_bucket(_bucket: address, _previous: address):
     self.num_buckets -= 1
     self.linked_buckets[_previous] = next
     self.linked_buckets[_bucket] = empty(address)
+    log RemoveBucket(_bucket)
 
 @external
 def replace_bucket(_old: address, _new: address, _previous: address):
@@ -291,6 +333,7 @@ def replace_bucket(_old: address, _new: address, _previous: address):
     self.linked_buckets[_previous] = _new
     self.linked_buckets[_old] = empty(address)
     self.linked_buckets[_new] = next
+    log ReplaceBucket(_old, _new)
 
 @external
 def set_converter(_from: address, _to: address, _converter: address):
@@ -303,6 +346,7 @@ def set_converter(_from: address, _to: address, _converter: address):
     """
     assert msg.sender == self.management
     self.packed_converters[_from][_to] = self._pack(0, _converter)
+    log SetConverter(_from, _to, _converter)
 
 @external
 def set_factory(_factory: address):
@@ -317,6 +361,7 @@ def set_factory(_factory: address):
     if _factory != empty(address):
         version += 1
     self.packed_factory = self._pack(version, _factory)
+    log SetFactory(_factory, version)
 
 @external
 def set_factory_version_enabled(_version: uint256, _enabled: bool):
@@ -336,6 +381,7 @@ def set_factory_version_enabled(_version: uint256, _enabled: bool):
     else:
         flags &= ~mask
     self.packed_factory_versions[_version / 256] = flags
+    log SetFactoryVersionEnabled(_version, _enabled)
 
 @external
 def set_operator(_operator: address):

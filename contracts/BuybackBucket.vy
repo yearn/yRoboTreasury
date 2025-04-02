@@ -30,6 +30,18 @@ parent: public(address)
 management: public(address)
 pending_management: public(address)
 
+event Convert:
+    _from: indexed(address)
+    _to: indexed(address)
+    _amount: uint256
+
+event Sweep:
+    _token: indexed(address)
+    _amount: uint256
+
+event SetParent:
+    _parent: address
+
 event PendingManagement:
     management: indexed(address)
 
@@ -81,7 +93,8 @@ def convert(_token: address, _amount: uint256):
     @dev Conversion can be async
     """
     assert msg.sender == self.parent
-
+    
+    log Convert(_token, buyback_token, _amount)
     if _token == buyback_token:
         assert ERC20(_token).transfer(treasury, _amount, default_return_value=True)
         return
@@ -103,6 +116,7 @@ def sweep(_token: address, _amount: uint256 = max_value(uint256)):
     if _amount == max_value(uint256):
         amount = ERC20(_token).balanceOf(self)
     assert ERC20(_token).transfer(self.management, amount, default_return_value=True)
+    log Sweep(_token, amount)
 
 @external
 def set_parent(_parent: address):
@@ -113,6 +127,7 @@ def set_parent(_parent: address):
     """
     assert msg.sender == self.management
     self.parent = _parent
+    log SetParent(_parent)
 
 @external
 def set_management(_management: address):

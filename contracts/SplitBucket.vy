@@ -25,6 +25,19 @@ buckets: public(DynArray[address, MAX_NUM_BUCKETS])
 total_points: public(uint256)
 points: public(HashMap[address, uint256])
 
+event Convert:
+    _from: indexed(address)
+    _to: indexed(address)
+    _amount: uint256
+
+event Sweep:
+    _token: indexed(address)
+    _amount: uint256
+
+event Points:
+    _bucket: indexed(address)
+    _points: uint256
+
 event PendingManagement:
     management: indexed(address)
 
@@ -82,7 +95,8 @@ def convert(_token: address, _amount: uint256):
     for bucket in self.buckets:
         amount: uint256 = _amount * self.points[bucket] / total_points
         assert ERC20(_token).transfer(bucket, amount, default_return_value=True)
-        Bucket(bucket).convert(_token, _amount)
+        log Convert(_token, empty(address), amount)
+        Bucket(bucket).convert(_token, amount)
 
 @external
 def sweep(_token: address, _amount: uint256 = max_value(uint256)):
@@ -97,6 +111,7 @@ def sweep(_token: address, _amount: uint256 = max_value(uint256)):
     if _amount == max_value(uint256):
         amount = ERC20(_token).balanceOf(self)
     assert ERC20(_token).transfer(self.management, amount, default_return_value=True)
+    log Sweep(_token, amount)
 
 @external
 def add_bucket(_bucket: address, _points: uint256) -> uint256:
@@ -117,6 +132,7 @@ def add_bucket(_bucket: address, _points: uint256) -> uint256:
     self.buckets.append(_bucket)
     self.total_points += _points
     self.points[_bucket] = _points
+    log Points(_bucket, _points)
     
     return num_buckets
 
@@ -142,6 +158,7 @@ def remove_bucket(_bucket: address, _index: uint256):
 
     self.total_points -= points
     self.points[_bucket] = 0
+    log Points(_bucket, 0)
 
 @external
 def set_points(_bucket: address, _points: uint256):
@@ -158,6 +175,7 @@ def set_points(_bucket: address, _points: uint256):
     
     self.total_points = self.total_points - prev_points + _points
     self.points[_bucket] = _points
+    log Points(_bucket, _points)
 
 @external
 def set_management(_management: address):

@@ -38,13 +38,22 @@ pending_management: public(address)
 auctions: public(HashMap[address, Auction])
 
 event Deploy:
-    to: indexed(address)
-    auction: address
+    _to: indexed(address)
+    _auction: address
 
 event Convert:
-    have: indexed(address)
-    amount: uint256
-    want: indexed(address)
+    _from: indexed(address)
+    _to: indexed(address)
+    _amount: uint256
+
+event Sweep:
+    _token: indexed(address)
+    _amount: uint256
+
+event Call:
+    _want: indexed(address)
+    _to: indexed(address)
+    _data: Bytes[2048]
 
 event PendingManagement:
     management: indexed(address)
@@ -90,9 +99,9 @@ def deploy(_from: address, _to: address) -> address:
 def convert(_from: address, _amount: uint256, _to: address):
     """
     @notice Start conversion of a token by auctioning them off
-    @param _token Token to convert from
+    @param _from Token to convert from
     @param _amount Amount of tokens to convert
-    @param _token Token to convert to
+    @param _to Token to convert to
     @dev Can only be called by a whitelisted bucket
     @dev Expects tokens to be transfered into the contract prior to being called
     """
@@ -111,7 +120,7 @@ def convert(_from: address, _amount: uint256, _to: address):
     # kick auction if possible
     if auction.kickable(_from) > 0:
         auction.kick(_from)
-    log Convert(_from, _amount, _to)
+    log Convert(_from, _to, _amount)
 
 @external
 def sweep(_token: address, _amount: uint256 = max_value(uint256)):
@@ -126,19 +135,21 @@ def sweep(_token: address, _amount: uint256 = max_value(uint256)):
     if _amount == max_value(uint256):
         amount = ERC20(_token).balanceOf(self)
     assert ERC20(_token).transfer(self.management, amount, default_return_value=True)
+    log Sweep(_token, amount)
 
 @external
-def call(_to: address, _data: Bytes[2048]):
+def call(_want: address, _data: Bytes[2048]):
     """
     @notice Low level call to an auction contract
-    @param _to Want token of the auction contract
+    @param _want Want token of the auction contract
     @param _data Calldata
     @dev Can only be called by management
     """
     assert msg.sender == self.management
-    auction: Auction = self.auctions[_to]
+    auction: Auction = self.auctions[_want]
     assert auction.address != empty(address)
     raw_call(auction.address, _data)
+    log Call(_want, auction.address, _data)
 
 @external
 def set_management(_management: address):

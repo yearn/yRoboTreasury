@@ -50,6 +50,28 @@ reserves_floor: public(uint256)
 cached_reserves: transient(uint256)
 cached_want: transient(address)
 
+event Convert:
+    _from: indexed(address)
+    _to: indexed(address)
+    _amount: uint256
+
+event Sweep:
+    _token: indexed(address)
+    _amount: uint256
+
+event Points:
+    _token: indexed(address)
+    _points: uint256
+
+event SetSplitBucket:
+    _split: address
+
+event SetProvider:
+    _provider: address
+
+event SetReservesFloor:
+    _floor: uint256
+
 event PendingManagement:
     management: indexed(address)
 
@@ -194,6 +216,7 @@ def sweep(_token: address, _amount: uint256 = max_value(uint256)):
     if _amount == max_value(uint256):
         amount = ERC20(_token).balanceOf(self)
     assert ERC20(_token).transfer(self.management, amount, default_return_value=True)
+    log Sweep(_token, amount)
 
 @external
 def add_token(_token: address, _points: uint256) -> uint256:
@@ -201,6 +224,7 @@ def add_token(_token: address, _points: uint256) -> uint256:
     @notice Add a token to the bucket
     @param _token The token to add
     @param _points The amount of points to allocate
+    @return The amount of tokens in the bucket, after adding the token
     @dev Can only be called by management
     """
     assert msg.sender == self.management
@@ -215,7 +239,8 @@ def add_token(_token: address, _points: uint256) -> uint256:
     self.tokens.append(_token)
     self.total_points += _points
     self.points[_token] = _points
-    
+    log Points(_token, _points)
+
     return num_tokens
 
 @external
@@ -240,6 +265,7 @@ def remove_token(_token: address, _index: uint256):
 
     self.total_points -= points
     self.points[_token] = 0
+    log Points(_token, 0)
 
 @external
 def set_points(_token: address, _points: uint256):
@@ -256,6 +282,7 @@ def set_points(_token: address, _points: uint256):
     
     self.total_points = self.total_points - prev_points + _points
     self.points[_token] = _points
+    log Points(_token, _points)
 
 @external
 def set_split_bucket(_split: address):
@@ -266,6 +293,7 @@ def set_split_bucket(_split: address):
     """
     assert msg.sender == self.management
     self.split_bucket = _split
+    log SetSplitBucket(_split)
 
 @external
 def set_provider(_provider: address):
@@ -282,6 +310,7 @@ def set_provider(_provider: address):
         assert provider.rate(token) > 0
 
     self.provider = provider
+    log SetProvider(_provider)
 
 @external
 def set_reserves_floor(_floor: uint256):
@@ -292,6 +321,7 @@ def set_reserves_floor(_floor: uint256):
     """
     assert msg.sender == self.management
     self.reserves_floor = _floor
+    log SetReservesFloor(_floor)
 
 @external
 def set_management(_management: address):
