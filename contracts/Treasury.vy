@@ -13,6 +13,7 @@ from vyper.interfaces import ERC20
 
 management: public(address)
 pending_management: public(address)
+pending_management_time: public(uint256)
 
 event ToManagement:
     token: indexed(address)
@@ -23,6 +24,8 @@ event PendingManagement:
 
 event SetManagement:
     management: indexed(address)
+
+DELAY: constant(uint256) = 7 * 24 * 60 * 60
 
 @external
 def __init__():
@@ -58,6 +61,7 @@ def set_management(_management: address):
     """
     assert msg.sender == self.management
     self.pending_management = _management
+    self.pending_management_time = block.timestamp + DELAY
     log PendingManagement(_management)
 
 @external
@@ -65,9 +69,11 @@ def accept_management():
     """
     @notice 
         Accept management role.
-        Can only be called by account previously marked as pending management by current management
+        Can only be called by account previously marked as pending management by current management.
+        Can only be called after the delay has expired
     """
     assert msg.sender == self.pending_management
+    assert block.timestamp >= self.pending_management_time, "too early"
     self.pending_management = empty(address)
     self.management = msg.sender
     log SetManagement(msg.sender)

@@ -1,6 +1,7 @@
 from ape import reverts
 from pytest import fixture
 
+DELAY = 7 * 24 * 60 * 60
 ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 UNIT = 10**18
 
@@ -29,7 +30,7 @@ def test_to_management_permission(deployer, alice, token, treasury):
         treasury.to_management(token, sender=alice)
     treasury.to_management(token, sender=deployer)
 
-def test_transfer_management(deployer, alice, bob, treasury):
+def test_transfer_management(chain, deployer, alice, bob, treasury):
     assert treasury.management() == deployer
     assert treasury.pending_management() == ZERO_ADDRESS
 
@@ -38,9 +39,16 @@ def test_transfer_management(deployer, alice, bob, treasury):
     with reverts():
         treasury.accept_management(sender=alice)
  
+    pending = chain.pending_timestamp
     treasury.set_management(alice, sender=deployer)
     assert treasury.management() == deployer
     assert treasury.pending_management() == alice
+    assert treasury.pending_management_time() == pending + DELAY
+
+    with reverts("revert: too early"):
+        treasury.accept_management(sender=alice)
+
+    chain.pending_timestamp = pending + DELAY
 
     with reverts():
         treasury.accept_management(sender=bob)

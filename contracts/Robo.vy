@@ -176,6 +176,7 @@ def factory() -> (uint256, address, bool):
     return (version, factory, self._enabled(version))
 
 @external
+@view
 def factory_version_enabled(_version: uint256) -> bool:
     """
     @notice Query whether a specific factory version is enabled
@@ -185,7 +186,7 @@ def factory_version_enabled(_version: uint256) -> bool:
     return self._enabled(_version)
 
 @external
-def pull(_token: address, _amount: uint256 = max_value(uint256)):
+def pull(_token: address, _amount: uint256 = max_value(uint256)) -> address:
     """
     @notice Pull a token from the ingress into a bucket
     @param _token Token to pull
@@ -219,7 +220,7 @@ def pull(_token: address, _amount: uint256 = max_value(uint256)):
         Bucket(bucket).convert(_token, amount)
         log Pull(_token, amount)
 
-        return
+        return bucket
 
     raise "no bucket available"
 
