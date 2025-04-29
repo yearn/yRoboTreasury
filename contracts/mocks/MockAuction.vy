@@ -13,6 +13,9 @@ interface Auction:
     def take(_from: address) -> uint256: nonpayable
     def startingPrice() -> uint256: view
     def setStartingPrice(_price: uint256): nonpayable
+    def isActive(_from: address) -> bool: view
+    def want() -> address: view
+    def receiver() -> address: view
 
 implements: Auction
 
@@ -56,3 +59,18 @@ def startingPrice() -> uint256:
 @external
 def setStartingPrice(_price: uint256):
     return
+
+@external
+@view
+def isActive(_from: address) -> bool:
+    return False
+
+@external
+@view
+def want() -> address:
+    return empty(address)
+
+@external
+@view
+def receiver() -> address:
+    return empty(address)

@@ -1,9 +1,13 @@
-from ape import reverts
+from ape import reverts, Contract
 from pytest import fixture
 
 SENTINEL = '0x1111111111111111111111111111111111111111'
 ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 UNIT = 10**18
+
+AUCTION_FACTORY = '0xa076c247AfA44f8F006CA7f21A4EF59f7e4dc605'
+WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
+DAI = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
 
 @fixture
 def treasury(project, deployer):
@@ -12,6 +16,14 @@ def treasury(project, deployer):
 @fixture
 def robo(project, deployer, ingress, treasury):
     return project.Robo.deploy(treasury, ingress, sender=deployer)
+
+@fixture
+def weth():
+    return Contract(WETH)
+
+@fixture
+def dai():
+    return Contract(DAI)
 
 def test_add_bucket(project, deployer, robo):
     bucket = project.MockBucket.deploy(sender=deployer)
@@ -187,3 +199,52 @@ def test_replace_bucket_permission(project, deployer, alice, robo):
     with reverts():
         robo.replace_bucket(bucket1, bucket2, SENTINEL, sender=alice)
     robo.replace_bucket(bucket1, bucket2, SENTINEL, sender=deployer)
+
+def test_pull(project, deployer, ychad, ingress, treasury, robo, weth, dai):
+    ingress.setOnesplit(robo, sender=ychad)
+    ingress.setAuthorized(robo, sender=ychad)
+
+    factory = project.Factory.deploy(treasury, robo, AUCTION_FACTORY, sender=deployer)
+    robo.set_factory(factory, sender=deployer)
+    robo.set_factory_version_enabled(1, True, sender=deployer)
+
+    provider = project.MockProvider.deploy(sender=deployer)
+    provider.set_rate(dai, UNIT, sender=deployer)
+    provider.set_rate(weth, UNIT, sender=deployer)
+
+    # stables bucket
+    bucket1 = project.GenericBucket.deploy(treasury, robo, sender=deployer)
+    bucket1.set_provider(provider, sender=deployer)
+    bucket1.set_reserves_floor(UNIT, sender=deployer)
+    bucket1.add_token(dai, 1, sender=deployer)
+    robo.add_bucket(bucket1, SENTINEL, sender=deployer)
+
+    # eth bucket
+    bucket2 = project.GenericBucket.deploy(treasury, robo, sender=deployer)
+    bucket2.set_provider(provider, sender=deployer)
+    bucket2.set_reserves_floor(UNIT, sender=deployer)
+    bucket2.add_token(weth, 1, sender=deployer)
+    robo.add_bucket(bucket2, bucket1, sender=deployer)
+
+    # first pull, should fill up first bucket without triggering any conversions
+    assert dai.balanceOf(treasury) == 0
+    assert not bucket1.above_floor(sender=deployer).return_value
+
+    dai_amt = 10 * UNIT
+    robo.pull(dai, dai_amt, sender=deployer)
+
+    assert dai.balanceOf(treasury) == dai_amt
+    assert bucket1.above_floor(sender=deployer).return_value
+
+    # sercond pull, should trigger a conversion on the second bucket
+    assert robo.converter(dai, weth) == ZERO_ADDRESS
+    assert factory.auctions(weth) == ZERO_ADDRESS
+
+    robo.pull(dai, dai_amt, sender=deployer)
+    assert robo.converter(dai, weth) == factory
+    auction = project.MockAuction.at(factory.auctions(weth))
+    assert dai.balanceOf(auction) == dai_amt
+    assert auction.want() == weth
+    assert auction.isActive(dai)
+    assert auction.available(dai) == dai_amt
+    assert auction.receiver() == treasury

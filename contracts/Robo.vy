@@ -35,10 +35,10 @@ interface Robo:
 interface OneSplit:
     def getExpectedReturn(
         _a: address, _b: address, _c: uint256, _d: uint256, _e: uint256
-    ) -> (uint256, uint256[1]): view
+    ) -> (uint256, DynArray[uint256, 1]): view
     def swap(
-        _a: address, _b: address, _c: uint256, _d: uint256, _e: uint256[1], _f: uint256
-    ): nonpayable
+        _a: address, _b: address, _c: uint256, _d: uint256, _e: DynArray[uint256 ,1], _f: uint256
+    ) -> uint256: nonpayable
 
 treasury: public(immutable(address))
 management: public(address)
@@ -356,6 +356,7 @@ def set_factory(_factory: address):
     @param _factory The factory address, if any
     @dev Can only be called by management
     @dev Increments the factory version if a factory is set
+    @dev Factory version must be enabled separately
     """
     assert msg.sender == self.management
     version: uint256 = self._unpack(self.packed_factory)[0]
@@ -426,14 +427,14 @@ def accept_management():
 @view
 def getExpectedReturn(
     _a: address, _b: address, _c: uint256, _d: uint256, _e: uint256
-) -> (uint256, uint256[1]):
+) -> (uint256, DynArray[uint256, 1]):
     return (0, [0])
 
 @external
 def swap(
-    _a: address, _b: address, _c: uint256, _d: uint256, _e: uint256[1], _f: uint256
-):
-    pass
+    _a: address, _b: address, _c: uint256, _d: uint256, _e: DynArray[uint256, 1], _f: uint256
+) -> uint256:
+    return 0
 
 ##### Internal utility functions #####
 
