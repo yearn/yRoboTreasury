@@ -173,7 +173,10 @@ def factory() -> (uint256, address, bool):
     version: uint256 = 0
     factory: address = empty(address)
     (version, factory) = self._unpack(self.packed_factory)
-    return (version, factory, self._enabled(version))
+    enabled: bool = False
+    if factory != empty(address):
+        enabled = self._enabled(version)
+    return (version, factory, enabled)
 
 @external
 @view
@@ -242,9 +245,9 @@ def deploy_converter(_from: address, _to: address) -> address:
     @param _from The token to convert from
     @param _to The token to convert to
     @return The converter contract
-    @dev Can only be called by an existing bucket
+    @dev Can only be called by an existing bucket or the operator
     """
-    assert self.linked_buckets[msg.sender] != empty(address)
+    assert self.linked_buckets[msg.sender] != empty(address) or msg.sender == self.operator
 
     converter: address = self._converter(_from, _to)
     if converter == empty(address):

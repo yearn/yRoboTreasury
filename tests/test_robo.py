@@ -248,3 +248,135 @@ def test_pull(project, deployer, ychad, ingress, treasury, robo, weth, dai):
     assert auction.isActive(dai)
     assert auction.available(dai) == dai_amt
     assert auction.receiver() == treasury
+
+def test_sweep(project, deployer, alice, robo):
+    token = project.MockToken.deploy(sender=deployer)
+    token.mint(robo, UNIT, sender=deployer)
+
+    with reverts():
+        robo.sweep(token, sender=alice)
+
+    assert token.balanceOf(deployer) == 0
+    robo.sweep(token, sender=deployer)
+    assert token.balanceOf(deployer) == UNIT
+
+def test_set_converter(deployer, alice, robo, weth, dai):
+    with reverts():
+        robo.set_converter(weth, dai, SENTINEL, sender=alice)
+
+    assert robo.converter(weth, dai) == ZERO_ADDRESS
+    robo.set_converter(weth, dai, SENTINEL, sender=deployer)
+    assert robo.converter(weth, dai) == SENTINEL
+
+    # manually set converter does not get overwritten
+    assert robo.deploy_converter(weth, dai, sender=deployer).return_value == SENTINEL
+
+def test_deploy_converter(project, deployer, alice, treasury, robo, weth, dai):
+    factory = project.Factory.deploy(treasury, robo, AUCTION_FACTORY, sender=deployer)
+    robo.set_factory(factory, sender=deployer)
+    robo.set_factory_version_enabled(1, True, sender=deployer)
+
+    with reverts():
+        robo.deploy_converter(weth, dai, sender=alice)
+
+    robo.add_bucket(alice, SENTINEL, sender=deployer)
+    assert robo.converter(weth, dai) == ZERO_ADDRESS
+    converter = robo.deploy_converter(weth, dai, sender=alice).return_value
+    assert converter != ZERO_ADDRESS
+    assert robo.converter(weth, dai) == converter
+
+def test_set_factory(project, deployer, alice, treasury, robo):
+    factory = project.Factory.deploy(treasury, robo, AUCTION_FACTORY, sender=deployer)
+
+    with reverts():
+        robo.set_factory(factory, sender=alice)
+
+    assert robo.factory() == (0, ZERO_ADDRESS, False)
+    robo.set_factory(factory, sender=deployer)
+    assert robo.factory() == (1, factory, False)
+
+def test_unset_factory(project, deployer, treasury, robo):
+    factory = project.Factory.deploy(treasury, robo, AUCTION_FACTORY, sender=deployer)
+    robo.set_factory(factory, sender=deployer)
+    robo.set_factory_version_enabled(1, True, sender=deployer)
+    assert robo.factory() == (1, factory, True)
+    robo.set_factory(ZERO_ADDRESS, sender=deployer)
+    assert robo.factory() == (1, ZERO_ADDRESS, False)
+
+def test_enable_factory(project, deployer, alice, treasury, robo, weth, dai):
+    factory = project.Factory.deploy(treasury, robo, AUCTION_FACTORY, sender=deployer)
+    robo.set_factory(factory, sender=deployer)
+
+    with reverts():
+        robo.deploy_converter(weth, dai, sender=deployer)
+
+    with reverts():
+        robo.set_factory_version_enabled(1, True, sender=alice)
+
+    assert not robo.factory_version_enabled(1)
+    robo.set_factory_version_enabled(1, True, sender=deployer)
+    assert robo.factory_version_enabled(1)
+    assert robo.factory() == (1, factory, True)
+
+    converter = robo.deploy_converter(weth, dai, sender=deployer).return_value
+    assert converter != ZERO_ADDRESS
+    assert robo.converter(weth, dai) == converter
+
+def test_disable_factory(project, deployer, alice, treasury, robo, weth, dai):
+    factory = project.Factory.deploy(treasury, robo, AUCTION_FACTORY, sender=deployer)
+    robo.set_factory(factory, sender=deployer)
+    robo.set_factory_version_enabled(1, True, sender=deployer)
+    converter = robo.deploy_converter(weth, dai, sender=deployer).return_value
+
+    # disable
+    robo.set_factory_version_enabled(1, False, sender=deployer)
+    assert robo.converter(weth, dai) == ZERO_ADDRESS
+    assert robo.factory() == (1, factory, False)
+
+    with reverts():
+        robo.deploy_converter(weth, dai, sender=deployer)
+
+    # re-enabling restores the converter
+    robo.set_factory_version_enabled(1, True, sender=deployer)
+    assert robo.converter(weth, dai) == converter
+    assert robo.factory() == (1, factory, True)
+
+    # deployments from disabled factories get overwritten
+    factory2 = project.Factory.deploy(treasury, robo, AUCTION_FACTORY, sender=deployer)
+    robo.set_factory(factory2, sender=deployer)
+    assert robo.factory_version_enabled(1)
+    robo.set_factory_version_enabled(1, False, sender=deployer)
+    assert not robo.factory_version_enabled(1)
+    robo.set_factory_version_enabled(2, True, sender=deployer)
+
+    converter2 = robo.deploy_converter(weth, dai, sender=deployer).return_value
+    assert converter2 not in [converter, ZERO_ADDRESS]
+    assert robo.converter(weth, dai) == converter2
+
+def test_set_operator(deployer, alice, robo):
+    with reverts():
+        robo.set_operator(alice, sender=alice)
+
+    assert robo.operator() == deployer
+    robo.set_operator(alice, sender=deployer)
+    assert robo.operator() == alice
+
+def test_transfer_management(deployer, alice, bob, robo):
+    assert robo.management() == deployer
+    assert robo.pending_management() == ZERO_ADDRESS
+
+    with reverts():
+        robo.set_management(alice, sender=alice)
+    with reverts():
+        robo.accept_management(sender=alice)
+ 
+    robo.set_management(alice, sender=deployer)
+    assert robo.management() == deployer
+    assert robo.pending_management() == alice
+
+    with reverts():
+        robo.accept_management(sender=bob)
+    
+    robo.accept_management(sender=alice)
+    assert robo.management() == alice
+    assert robo.pending_management() == ZERO_ADDRESS
