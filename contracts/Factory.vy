@@ -35,6 +35,7 @@ robo: public(immutable(Robo))
 auction_factory: public(immutable(AuctionFactory))
 management: public(address)
 pending_management: public(address)
+operator: public(address)
 auctions: public(HashMap[address, Auction])
 
 event Deploy:
@@ -54,6 +55,9 @@ event Call:
     _want: indexed(address)
     _to: indexed(address)
     _data: Bytes[2048]
+
+event SetOperator:
+    operator: indexed(address)
 
 event PendingManagement:
     management: indexed(address)
@@ -76,6 +80,7 @@ def __init__(_treasury: address, _robo: address, _auction_factory: address):
     robo = Robo(_robo)
     auction_factory = AuctionFactory(_auction_factory)
     self.management = msg.sender
+    self.operator = msg.sender
 
 @external
 def deploy(_from: address, _to: address) -> address:
@@ -143,13 +148,24 @@ def call(_want: address, _data: Bytes[2048]):
     @notice Low level call to an auction contract
     @param _want Want token of the auction contract
     @param _data Calldata
-    @dev Can only be called by management
+    @dev Can only be called by operator
     """
-    assert msg.sender == self.management
+    assert msg.sender == self.operator
     auction: Auction = self.auctions[_want]
     assert auction.address != empty(address)
     raw_call(auction.address, _data)
     log Call(_want, auction.address, _data)
+
+@external
+def set_operator(_operator: address):
+    """
+    @notice Set the new operator address
+    @param _operator New operator address
+    @dev Can only be called by management
+    """
+    assert msg.sender == self.management
+    self.operator = _operator
+    log SetOperator(_operator)
 
 @external
 def set_management(_management: address):

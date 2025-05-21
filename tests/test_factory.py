@@ -99,7 +99,7 @@ def test_sweep_permission(project, deployer, alice, factory):
         factory.sweep(token, sender=alice)
     factory.sweep(token, sender=deployer)
 
-def test_call(project, deployer, alice, robo, factory):
+def test_call(project, deployer, alice, bob, robo, factory):
     token1 = project.MockToken.deploy(sender=deployer)
     token2 = project.MockToken.deploy(sender=deployer)
 
@@ -109,11 +109,20 @@ def test_call(project, deployer, alice, robo, factory):
     assert auction.startingPrice() == 1_000_000
     data = auction.setStartingPrice.encode_input(1_000)
 
+    factory.set_operator(alice, sender=deployer)
     with reverts():
-        factory.call(token2, data, sender=alice)
+        factory.call(token2, data, sender=bob)
 
-    factory.call(token2, data, sender=deployer)
+    factory.call(token2, data, sender=alice)
     assert auction.startingPrice() == 1_000
+
+def test_set_operator(deployer, alice, factory):
+    with reverts():
+        factory.set_operator(alice, sender=alice)
+
+    assert factory.operator() == deployer
+    factory.set_operator(alice, sender=deployer)
+    assert factory.operator() == alice
 
 def test_transfer_management(deployer, alice, bob, factory):
     assert factory.management() == deployer
