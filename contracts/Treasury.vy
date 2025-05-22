@@ -28,11 +28,15 @@ event SetManagement:
 DELAY: constant(uint256) = 7 * 24 * 60 * 60
 
 @external
-def __init__():
+def __init__(_pending: address):
     """
     @notice Constructor
     """
     self.management = msg.sender
+
+    if _pending != empty(address):
+        self.pending_management = _pending
+        self.pending_management_time = block.timestamp
 
 @external
 def to_management(_token: address, _amount: uint256 = max_value(uint256)):
