@@ -11,7 +11,7 @@ def token(project, deployer):
 
 @fixture
 def treasury(project, deployer):
-    return project.Treasury.deploy(sender=deployer)
+    return project.Treasury.deploy(ZERO_ADDRESS, sender=deployer)
 
 def test_to_management(deployer, token, treasury):
     token.mint(treasury, 3 * UNIT, sender=deployer)
@@ -53,6 +53,19 @@ def test_transfer_management(chain, deployer, alice, bob, treasury):
     with reverts():
         treasury.accept_management(sender=bob)
     
+    treasury.accept_management(sender=alice)
+    assert treasury.management() == alice
+    assert treasury.pending_management() == ZERO_ADDRESS
+
+def test_transfer_management_preset(project, deployer, alice, bob):
+    # setting a pending management on deployment bypasses the delay once
+    treasury = project.Treasury.deploy(alice, sender=deployer)
+
+    with reverts():
+        treasury.accept_management(sender=bob)
+
+    assert treasury.management() == deployer
+    assert treasury.pending_management() == alice
     treasury.accept_management(sender=alice)
     assert treasury.management() == alice
     assert treasury.pending_management() == ZERO_ADDRESS

@@ -11,7 +11,7 @@ DAI = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
 
 @fixture
 def treasury(project, deployer):
-    return project.Treasury.deploy(sender=deployer)
+    return project.Treasury.deploy(ZERO_ADDRESS, sender=deployer)
 
 @fixture
 def robo(project, deployer, ingress, treasury):
