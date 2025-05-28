@@ -22,7 +22,9 @@ def main():
     assert all([c.robo() == robo for c in cs])
 
     assert cs.pop().management() == YCHAD # guard management is immutable
-    cs.extend([treasury, robo])
+    cs.append(robo)
+    assert all([c.treasury() == treasury for c in cs if c != splitter])
+    cs.append(treasury)
     assert all([c.pending_management() == YCHAD for c in cs])
 
     cs = [guard, factory]
