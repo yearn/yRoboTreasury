@@ -2,7 +2,7 @@
 # pragma optimize gas
 # pragma evm-version cancun
 """
-@title Split bucket
+@title Buyback bucket
 @author Yearn Finance
 @license GNU AGPLv3
 @notice
@@ -56,7 +56,7 @@ def __init__(_treasury: address, _robo: address, _token: address):
     @notice Constructor
     @param _treasury Treasury contract, ultimate destination of all assets
     @param _robo Robo contract
-    @param _robo Token being bought back
+    @param _token Token being bought back
     """
     treasury = _treasury
     robo = Robo(_robo)
