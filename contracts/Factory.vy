@@ -120,7 +120,7 @@ def convert(_from: address, _amount: uint256, _to: address):
         auction.enable(_from)
 
     # transfer tokens to auction contract
-    ERC20(_from).transfer(auction.address, _amount)
+    assert ERC20(_from).transfer(auction.address, _amount, default_return_value=True)
 
     # kick auction if possible
     if auction.kickable(_from) > 0:
