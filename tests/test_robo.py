@@ -54,8 +54,8 @@ def whitelist(project, deployer, alice, robo):
     return project.Whitelist.deploy(robo, deployer, alice, sender=deployer)
 
 @fixture
-def guardv2(project, deployer, alice, robo, whitelist):
-    return project.GuardV2.deploy(robo, whitelist, alice, sender=deployer)
+def guard(project, deployer, alice, robo, whitelist):
+    return project.Guard.deploy(robo, whitelist, alice, sender=deployer)
 
 @fixture
 def weth():
@@ -281,18 +281,18 @@ def test_pull_whitelist(deployer, alice, bob, treasury, robo, buckets, whitelist
     whitelist.pull(dai, UNIT, sender=alice)
     assert dai.balanceOf(treasury) == UNIT
 
-def test_pull_guard_v2(deployer, alice, bob, treasury, robo, buckets, whitelist, guardv2, dai):
-    robo.set_operator(guardv2, sender=deployer)
+def test_pull_guard(deployer, alice, bob, treasury, robo, buckets, whitelist, guard, dai):
+    robo.set_operator(guard, sender=deployer)
     
     with reverts():
-        guardv2.pull(dai, UNIT, sender=alice)
+        guard.pull(dai, UNIT, sender=alice)
 
     whitelist.set_whitelist(dai, sender=deployer)
 
     with reverts():
-        guardv2.pull(dai, UNIT, sender=bob)
+        guard.pull(dai, UNIT, sender=bob)
 
-    guardv2.pull(dai, UNIT, sender=alice)
+    guard.pull(dai, UNIT, sender=alice)
     assert dai.balanceOf(treasury) == UNIT
 
 def test_sweep(project, deployer, alice, robo):
