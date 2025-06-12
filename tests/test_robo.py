@@ -406,6 +406,20 @@ def test_set_operator(deployer, alice, robo, buckets, dai):
 
     robo.pull(dai, UNIT, sender=alice)
 
+def test_set_ingress(deployer, alice, ingress, robo, buckets, dai):
+    with reverts():
+        robo.set_ingress(alice, sender=alice)
+
+    assert robo.ingress() == ingress
+    robo.set_ingress(alice, sender=deployer)
+    assert robo.ingress() == alice
+
+    with reverts():
+        robo.pull(dai, UNIT, sender=deployer)
+
+    robo.set_ingress(ingress, sender=deployer)
+    robo.pull(dai, UNIT, sender=deployer)
+
 def test_transfer_management(deployer, alice, bob, robo):
     assert robo.management() == deployer
     assert robo.pending_management() == ZERO_ADDRESS

@@ -91,6 +91,9 @@ event SetFactoryVersionEnabled:
     _version: indexed(uint256)
     _enabled: bool
 
+event SetIngress:
+    _ingress: indexed(address)
+
 event PendingManagement:
     management: indexed(address)
 
@@ -398,6 +401,17 @@ def set_operator(_operator: address):
     assert msg.sender == self.management
     self.operator = _operator
     log SetOperator(_operator)
+
+@external
+def set_ingress(_ingress: address):
+    """
+    @notice Set the ingress contract to pull assets from
+    @param _ingress The ingress address
+    @dev Can only be called by management
+    """
+    assert msg.sender == self.management
+    self.ingress = Ingress(_ingress)
+    log SetIngress(_ingress)
 
 @external
 def set_management(_management: address):
