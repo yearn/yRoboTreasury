@@ -2,6 +2,7 @@ from ape import project, Contract
 from json import load
 
 YCHAD = '0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52'
+INGRESS = '0x93A62dA5a14C80f265DAbC077fCEE437B1a0Efde'
 OPS_SAFE = '0xABCDEF0028B6Cc3539C2397aCab017519f8744c8'
 
 def main():
@@ -18,6 +19,7 @@ def main():
     splitter = project.SplitBucket.at(d['SPLITTER'])
     guard = project.Guard.at(d['GUARD'])
 
+    assert robo.ingress() == INGRESS
     cs = [factory, stables_reserve, stables_buffer, ether_buffer, yfi_buyback, yvyfilp_buyback, splitter, guard]
     assert all([c.robo() == robo for c in cs])
 
@@ -25,7 +27,7 @@ def main():
     cs.append(robo)
     assert all([c.treasury() == treasury for c in cs if c != splitter])
     cs.append(treasury)
-    assert all([c.pending_management() == YCHAD for c in cs])
+    assert all([YCHAD in [c.management(), c.pending_management()] for c in cs])
 
     cs = [guard, factory]
     assert all([c.operator() == OPS_SAFE for c in cs])
