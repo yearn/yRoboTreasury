@@ -18,20 +18,23 @@ def main():
     yvyfilp_buyback = project.BuybackBucket.at(d['YVYFILP_BUYBACK'])
     splitter = project.SplitBucket.at(d['SPLITTER'])
     whitelist = project.Whitelist.at(d['WHITELIST'])
+    guard = project.Guard.at(d['GUARD'])
 
     assert robo.ingress() == INGRESS
-    cs = [factory, stables_reserve, stables_buffer, ether_buffer, yfi_buyback, yvyfilp_buyback, splitter, whitelist]
+    assert guard.whitelist() == whitelist
+    assert whitelist.management() == YCHAD
+    cs = [factory, stables_reserve, stables_buffer, ether_buffer, yfi_buyback, yvyfilp_buyback, splitter, guard]
     assert all([c.robo() == robo for c in cs])
 
-    assert cs.pop().management() == YCHAD # guard management is immutable
+    cs.pop()
     cs.append(robo)
     assert all([c.treasury() == treasury for c in cs if c != splitter])
     cs.append(treasury)
     assert all([YCHAD in [c.management(), c.pending_management()] for c in cs])
 
-    cs = [whitelist, factory]
+    cs = [guard, factory]
     assert all([c.operator() == OPS_SAFE for c in cs])
-    assert robo.operator() == whitelist
+    assert robo.operator() == guard
 
     print('✔ sanity checks passed')
 
