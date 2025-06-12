@@ -2,7 +2,7 @@
 # pragma optimize gas
 # pragma evm-version cancun
 """
-@title RoboTreasury
+@title Whitelist
 @author Yearn Finance
 @license GNU AGPLv3
 @notice

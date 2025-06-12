@@ -50,12 +50,12 @@ def buckets(project, deployer, ychad, ingress, treasury, robo, factory, weth, da
     return [bucket1, bucket2]
 
 @fixture
-def guard(project, deployer, alice, robo):
-    return project.Guard.deploy(robo, deployer, alice, sender=deployer)
+def whitelist(project, deployer, alice, robo):
+    return project.Whitelist.deploy(robo, deployer, alice, sender=deployer)
 
 @fixture
-def guardv2(project, deployer, alice, robo, guard):
-    return project.GuardV2.deploy(robo, guard, alice, sender=deployer)
+def guardv2(project, deployer, alice, robo, whitelist):
+    return project.GuardV2.deploy(robo, whitelist, alice, sender=deployer)
 
 @fixture
 def weth():
@@ -267,27 +267,27 @@ def test_pull(project, deployer, alice, bob, treasury, robo, factory, buckets, w
     assert auction.available(dai) == dai_amt
     assert auction.receiver() == treasury
 
-def test_pull_guard(deployer, alice, bob, treasury, robo, buckets, guard, dai):
-    robo.set_operator(guard, sender=deployer)
+def test_pull_whitelist(deployer, alice, bob, treasury, robo, buckets, whitelist, dai):
+    robo.set_operator(whitelist, sender=deployer)
     
     with reverts():
-        guard.pull(dai, UNIT, sender=alice)
+        whitelist.pull(dai, UNIT, sender=alice)
 
-    guard.set_whitelist(dai, sender=deployer)
+    whitelist.set_whitelist(dai, sender=deployer)
 
     with reverts():
-        guard.pull(dai, UNIT, sender=bob)
+        whitelist.pull(dai, UNIT, sender=bob)
 
-    guard.pull(dai, UNIT, sender=alice)
+    whitelist.pull(dai, UNIT, sender=alice)
     assert dai.balanceOf(treasury) == UNIT
 
-def test_pull_guard_v2(deployer, alice, bob, treasury, robo, buckets, guard, guardv2, dai):
+def test_pull_guard_v2(deployer, alice, bob, treasury, robo, buckets, whitelist, guardv2, dai):
     robo.set_operator(guardv2, sender=deployer)
     
     with reverts():
         guardv2.pull(dai, UNIT, sender=alice)
 
-    guard.set_whitelist(dai, sender=deployer)
+    whitelist.set_whitelist(dai, sender=deployer)
 
     with reverts():
         guardv2.pull(dai, UNIT, sender=bob)

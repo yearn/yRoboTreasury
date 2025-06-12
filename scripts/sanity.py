@@ -17,10 +17,10 @@ def main():
     yfi_buyback = project.BuybackBucket.at(d['YFI_BUYBACK'])
     yvyfilp_buyback = project.BuybackBucket.at(d['YVYFILP_BUYBACK'])
     splitter = project.SplitBucket.at(d['SPLITTER'])
-    guard = project.Guard.at(d['GUARD'])
+    whitelist = project.Whitelist.at(d['WHITELIST'])
 
     assert robo.ingress() == INGRESS
-    cs = [factory, stables_reserve, stables_buffer, ether_buffer, yfi_buyback, yvyfilp_buyback, splitter, guard]
+    cs = [factory, stables_reserve, stables_buffer, ether_buffer, yfi_buyback, yvyfilp_buyback, splitter, whitelist]
     assert all([c.robo() == robo for c in cs])
 
     assert cs.pop().management() == YCHAD # guard management is immutable
@@ -29,9 +29,9 @@ def main():
     cs.append(treasury)
     assert all([YCHAD in [c.management(), c.pending_management()] for c in cs])
 
-    cs = [guard, factory]
+    cs = [whitelist, factory]
     assert all([c.operator() == OPS_SAFE for c in cs])
-    assert robo.operator() == guard
+    assert robo.operator() == whitelist
 
     print('✔ sanity checks passed')
 
